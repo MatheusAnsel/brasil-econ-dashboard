@@ -33,9 +33,11 @@ Brasil API ┘   (collectors)   (Supabase)   (Fastify)    (Next.js)
 
 ```
 apps/
-  api/   Node + TypeScript, Fastify, Zod, Drizzle ou Prisma
+  api/   Node + TypeScript, Fastify, Zod
   etl/   Job de coleta; um collector por fonte, todos gravando em formato único
-  web/   Next.js com Recharts ou ECharts
+  web/   Next.js com Recharts ou ECharts (planejado)
+packages/
+  db/    Drizzle ORM: schema, cliente e migrações
 ```
 
 ## Séries iniciais (BCB SGS)
@@ -68,20 +70,23 @@ Séries diárias têm limite de janela por consulta (cerca de 10 anos), então a
 | --- | --- | --- |
 | GET | `/series` | Lista as séries disponíveis |
 | GET | `/series/:id/observations?from=&to=&agg=month` | Observações com filtro de período e agregação |
-| GET | `/analytics/correlation?a=432&b=13522&lag=6` | Correlação entre duas séries com defasagem |
-| GET | `/analytics/real-rate` | Juro real (Selic menos IPCA 12m) |
+| GET | `/etl/status` | Última execução do ETL (alimenta o rodapé de atualização) |
+| GET | `/analytics/correlation?a=432&b=13522&lag=6` | Correlação entre duas séries com defasagem (planejado) |
+| GET | `/analytics/real-rate` | Juro real, Selic menos IPCA 12m (planejado) |
+
+O parâmetro `agg` aceita `none`, `month` e `year` (média no período).
 
 ## Stack
 
-- Backend: Node.js, TypeScript, Fastify, Zod, Drizzle ou Prisma
+- Backend: Node.js, TypeScript, Fastify, Zod, Drizzle ORM
 - Banco: PostgreSQL
 - Frontend: Next.js, Recharts ou ECharts
 - Deploy: Vercel (front), Render (API e cron job) e Supabase (PostgreSQL)
 
 ## Roadmap
 
-- [ ] Schema e collector do BCB (Selic e IPCA) com carga histórica
-- [ ] API com os endpoints de séries
+- [x] Schema e collector do BCB (Selic, IPCA e dólar) com carga histórica
+- [x] API com os endpoints de séries e status do ETL
 - [ ] Primeiro gráfico no Next.js, já publicado
 - [ ] Cron diário, depois IBGE e Brasil API
 - [ ] Camada de analytics (correlação e juro real)
@@ -89,15 +94,41 @@ Séries diárias têm limite de janela por consulta (cerca de 10 anos), então a
 
 ## Como rodar localmente
 
+Requisitos: Node.js 20 ou superior e Docker (para o PostgreSQL local).
+
 ```bash
 git clone https://github.com/MatheusAnsel/brasil-econ-dashboard.git
 cd brasil-econ-dashboard
-cp .env.example .env   # defina DATABASE_URL
+cp .env.example .env
 npm install
-npm run dev
+
+npm run db:up        # PostgreSQL local via docker compose
+npm run db:migrate   # aplica as migrações
+npm run etl          # carga histórica do BCB (reexecutar faz upsert incremental)
+npm run api          # API em http://localhost:3333
 ```
 
-Os comandos acima serão ajustados conforme o scaffold do monorepo for criado.
+Exemplos:
+
+```bash
+curl http://localhost:3333/series
+curl "http://localhost:3333/series/1/observations?from=2020-01-01&agg=month"
+curl http://localhost:3333/etl/status
+```
+
+Em produção (Supabase), defina `DATABASE_URL` com a connection string e `DATABASE_SSL=true`.
+
+Para alterar o schema, edite `packages/db/src/schema.ts` e rode `npm run db:generate`.
+
+## Estrutura
+
+```
+apps/
+  api/        Fastify + Zod (rotas em src/routes)
+  etl/        Collectors por fonte (src/collectors) e job principal (src/run.ts)
+packages/
+  db/         Schema Drizzle, cliente e migrações (drizzle/)
+```
 
 ## Fontes de dados
 

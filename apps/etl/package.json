@@ -1,0 +1,16 @@
+{
+  "name": "@econ/etl",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@econ/db": "^0.1.0",
+    "dotenv": "^18.0.5",
+    "drizzle-orm": "^0.45.3",
+    "pg": "^8.23.1"
+  }
+}

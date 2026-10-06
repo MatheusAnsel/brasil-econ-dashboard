@@ -1,0 +1,27 @@
+{
+  "name": "brasil-econ-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dashboard econômico do Brasil: ETL (BCB, IBGE), API REST e front em Next.js",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:generate": "npm run generate -w @econ/db",
+    "db:migrate": "npm run migrate -w @econ/db",
+    "etl": "npm run start -w @econ/etl",
+    "api": "npm run dev -w @econ/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
