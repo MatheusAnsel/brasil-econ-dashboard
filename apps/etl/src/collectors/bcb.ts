@@ -9,7 +9,7 @@ export interface RawObservation {
   value: string;
 }
 
-interface SgsRow {
+export interface SgsRow {
   data: string; // dd/MM/yyyy
   valor: string;
 }
@@ -20,7 +20,7 @@ function toBr(d: Date): string {
   return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 }
 
-function brToIso(s: string): string {
+export function brToIso(s: string): string {
   const [dd, mm, yyyy] = s.split("/");
   return `${yyyy}-${mm}-${dd}`;
 }
@@ -54,6 +54,17 @@ async function fetchWindow(code: string, start: Date, end: Date, attempt = 1): P
   }
 }
 
+/** Converte linhas cruas do SGS, descartando valores vazios ou não numéricos. */
+export function parseSgsRows(rows: SgsRow[]): RawObservation[] {
+  const out: RawObservation[] = [];
+  for (const row of rows) {
+    if (row.valor === "" || row.valor == null) continue;
+    if (Number.isNaN(Number(row.valor))) continue;
+    out.push({ date: brToIso(row.data), value: row.valor });
+  }
+  return out;
+}
+
 export async function collectBcbSeries(
   code: string,
   start: Date,
@@ -61,12 +72,7 @@ export async function collectBcbSeries(
 ): Promise<RawObservation[]> {
   const out: RawObservation[] = [];
   for (const [ws, we] of buildWindows(start, end)) {
-    const rows = await fetchWindow(code, ws, we);
-    for (const row of rows) {
-      if (row.valor === "" || row.valor == null) continue;
-      if (Number.isNaN(Number(row.valor))) continue;
-      out.push({ date: brToIso(row.data), value: row.valor });
-    }
+    out.push(...parseSgsRows(await fetchWindow(code, ws, we)));
   }
   return out;
 }

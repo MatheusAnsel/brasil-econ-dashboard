@@ -1,0 +1,28 @@
+# Blueprint do Render: API + job diário de ETL.
+# O banco fica no Supabase; defina DATABASE_URL no painel (sync: false).
+services:
+  - type: web
+    name: brasil-econ-api
+    runtime: node
+    buildCommand: npm ci --include=dev
+    startCommand: npm run start -w @econ/api
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: cron
+    name: brasil-econ-etl
+    runtime: node
+    schedule: "0 9 * * *" # diariamente, 09:00 UTC
+    buildCommand: npm ci --include=dev
+    startCommand: npm run etl
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"

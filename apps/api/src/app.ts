@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import type { Db } from "@econ/db";
+import { analyticsRoutes } from "./routes/analytics";
 import { etlRoutes } from "./routes/etl";
 import { seriesRoutes } from "./routes/series";
 
@@ -15,6 +16,7 @@ export async function buildApp(db: Db) {
 
   await app.register(seriesRoutes(db), { prefix: "/series" });
   await app.register(etlRoutes(db), { prefix: "/etl" });
+  await app.register(analyticsRoutes(db), { prefix: "/analytics" });
 
   return app;
 }

@@ -1,96 +1,82 @@
 # brasil-econ-dashboard
 
-Dashboard de indicadores econômicos do Brasil. Um pipeline de ETL coleta séries históricas do Banco Central e do IBGE, grava no PostgreSQL e expõe uma API REST. O front em Next.js apresenta gráficos, comparações e correlações entre as séries, como Selic versus inflação.
+[![CI](https://github.com/MatheusAnsel/brasil-econ-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/MatheusAnsel/brasil-econ-dashboard/actions/workflows/ci.yml)
+
+Dashboard de indicadores econômicos do Brasil. Um job de ETL coleta séries históricas do Banco Central, grava no PostgreSQL e uma API REST em Node/TypeScript as serve para um front em Next.js, que mostra a relação entre Selic, inflação, juro real e câmbio.
 
 ## Sobre
 
-O projeto cobre o ciclo completo de um produto de dados: coleta periódica de fontes públicas, modelagem e persistência, API tipada e visualização. A análise central é a correlação com defasagem (lag) entre a taxa Selic e a inflação, além do cálculo do juro real.
+O projeto cobre o ciclo completo de um produto de dados: coleta periódica de uma fonte pública, modelagem e persistência, API tipada com validação, análise estatística e visualização. A análise central é a correlação com defasagem (lag) entre a Selic e a inflação, além do cálculo do juro real.
 
-## Funcionalidades
+## O que o dashboard mostra
 
-- Coleta automática e periódica de séries do Banco Central (SGS), IBGE (SIDRA) e Brasil API
-- Carga histórica em blocos, respeitando o limite de janela das séries diárias do SGS
-- ETL idempotente: upsert com chave única em `(series_id, data)`, podendo rodar várias vezes sem duplicar dados
-- API REST com agregação por período e endpoints de análise
-- Gráficos de séries históricas, comparações e correlações
-- Indicador de última atualização baseado no registro de execuções do ETL
-
-## Telas
-
-1. Selic versus IPCA acumulado em 12 meses, em eixo duplo, com marcações das reuniões do Copom
+1. Selic meta vs. IPCA acumulado em 12 meses, em eixo duplo
 2. Juro real ao longo do tempo
-3. Correlação com defasagem entre Selic e inflação
-4. Dólar versus Selic
-5. Rodapé de última atualização, lendo `etl_runs`
+3. Correlação de Pearson entre a Selic e o IPCA 12m com defasagem de 0 a 24 meses
+4. Dólar (PTAX venda) vs. Selic
+5. Rodapé com a última execução do ETL, lida da tabela `etl_runs`
 
 ## Arquitetura
 
-```
-BCB SGS ─┐
-IBGE ────┼──> apps/etl ──> PostgreSQL ──> apps/api ──> apps/web
-Brasil API ┘   (collectors)   (Supabase)   (Fastify)    (Next.js)
+```mermaid
+flowchart LR
+  BCB[Banco Central SGS] --> ETL[apps/etl<br/>collectors + upsert]
+  ETL --> DB[(PostgreSQL)]
+  DB --> API[apps/api<br/>Fastify + Zod]
+  API --> WEB[apps/web<br/>Next.js + Recharts]
 ```
 
 ```
 apps/
-  api/   Node + TypeScript, Fastify, Zod
-  etl/   Job de coleta; um collector por fonte, todos gravando em formato único
-  web/   Next.js com Recharts ou ECharts (planejado)
+  api/        Fastify + Zod. Rotas em src/routes, estatística pura em src/analytics.ts
+  etl/        Collectors por fonte (src/collectors) e job principal (src/run.ts)
+  web/        Next.js (App Router) com gráficos em Recharts
 packages/
-  db/    Drizzle ORM: schema, cliente e migrações
+  db/         Schema Drizzle, cliente e migrações SQL (drizzle/)
 ```
 
-## Séries iniciais (BCB SGS)
+## Decisões técnicas
 
-| Série | Código |
-| --- | --- |
-| Selic meta | 432 |
-| Selic diária | 11 |
-| IPCA mensal | 433 |
-| IPCA acumulado em 12 meses | 13522 |
-| Dólar (PTAX venda) | 1 |
+- **ETL idempotente.** `observations` tem chave primária em `(series_id, date)` e toda escrita é upsert. O job pode rodar quantas vezes for preciso sem duplicar dados.
+- **Carga incremental.** Depois da primeira carga, cada execução reprocessa só os últimos 60 dias de cada série, o que cobre revisões (como as do IPCA).
+- **Limite do SGS.** Séries diárias aceitam janelas de cerca de 10 anos por consulta. O collector divide o período em janelas de 9 anos e tenta de novo com backoff exponencial em caso de falha.
+- **Observabilidade do pipeline.** Cada execução grava início, fim, status, linhas processadas e erros em `etl_runs`. Uma série que falha não interrompe as outras, e a execução termina com status `error` e código de saída 1.
+- **Juro real.** Calculado pela equação de Fisher, `((1 + selic) / (1 + ipca12m) - 1) * 100`, e não pela subtração simples. É um juro real ex-post.
+- **Correlação com defasagem.** Os valores são agregados por média mensal e pareados como `a[t]` com `b[t + lag]`. Lag positivo responde à pergunta: a Selic de hoje se relaciona com a inflação de daqui a N meses?
+- **Estatística separada da I/O.** As funções de `analytics.ts` são puras e testadas sem banco.
 
-Padrão de consulta:
+## Fontes e séries
 
-```
-https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=json&dataInicial=dd/MM/aaaa&dataFinal=dd/MM/aaaa
-```
+Todas as séries vêm do SGS do Banco Central.
 
-Séries diárias têm limite de janela por consulta (cerca de 10 anos), então a carga inicial é feita em blocos. Do IBGE entram, via SIDRA, o IPCA detalhado por grupo e o PIB. A Brasil API complementa com taxas e câmbio.
+| Série | Código | Periodicidade |
+| --- | --- | --- |
+| Meta Selic | 432 | Diária |
+| Selic diária | 11 | Diária |
+| IPCA mensal | 433 | Mensal |
+| IPCA acumulado em 12 meses | 13522 | Mensal |
+| Dólar (PTAX venda) | 1 | Diária |
+
+Padrão de consulta: `https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=json&dataInicial=dd/MM/aaaa&dataFinal=dd/MM/aaaa`
 
 ## Modelo de dados
 
-- `series`: id, código, fonte, nome, unidade, periodicidade
-- `observations`: series_id, data, valor, com chave única em `(series_id, data)`
-- `etl_runs`: fonte, início, fim, status, linhas inseridas
+- `series`: id, source, code, name, unit, periodicity. Única em `(source, code)`.
+- `observations`: series_id, date, value. Chave primária em `(series_id, date)`.
+- `etl_runs`: source, started_at, finished_at, status, rows_upserted, error.
 
-## Endpoints
+## API
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
+| GET | `/health` | Verificação de saúde |
 | GET | `/series` | Lista as séries disponíveis |
-| GET | `/series/:id/observations?from=&to=&agg=month` | Observações com filtro de período e agregação |
-| GET | `/etl/status` | Última execução do ETL (alimenta o rodapé de atualização) |
-| GET | `/analytics/correlation?a=432&b=13522&lag=6` | Correlação entre duas séries com defasagem (planejado) |
-| GET | `/analytics/real-rate` | Juro real, Selic menos IPCA 12m (planejado) |
+| GET | `/series/:id/observations?from=&to=&agg=` | Observações com filtro de período. `agg` aceita `none`, `month` e `year` (média no período) |
+| GET | `/analytics/correlation?a=432&b=13522&lag=6` | Correlação de Pearson entre duas séries (códigos do BCB) com defasagem em meses |
+| GET | `/analytics/real-rate?from=&to=` | Juro real mensal (Selic meta e IPCA 12m) |
+| GET | `/etl/status` | Última execução do ETL |
 
-O parâmetro `agg` aceita `none`, `month` e `year` (média no período).
-
-## Stack
-
-- Backend: Node.js, TypeScript, Fastify, Zod, Drizzle ORM
-- Banco: PostgreSQL
-- Frontend: Next.js, Recharts ou ECharts
-- Deploy: Vercel (front), Render (API e cron job) e Supabase (PostgreSQL)
-
-## Roadmap
-
-- [x] Schema e collector do BCB (Selic, IPCA e dólar) com carga histórica
-- [x] API com os endpoints de séries e status do ETL
-- [ ] Primeiro gráfico no Next.js, já publicado
-- [ ] Cron diário, depois IBGE e Brasil API
-- [ ] Camada de analytics (correlação e juro real)
-- [ ] Diagrama de arquitetura e documentação final
+Os parâmetros são validados com Zod e respondem 400 em caso de erro.
 
 ## Como rodar localmente
 
@@ -106,6 +92,7 @@ npm run db:up        # PostgreSQL local via docker compose
 npm run db:migrate   # aplica as migrações
 npm run etl          # carga histórica do BCB (reexecutar faz upsert incremental)
 npm run api          # API em http://localhost:3333
+npm run web          # front em http://localhost:3000
 ```
 
 Exemplos:
@@ -113,28 +100,40 @@ Exemplos:
 ```bash
 curl http://localhost:3333/series
 curl "http://localhost:3333/series/1/observations?from=2020-01-01&agg=month"
+curl "http://localhost:3333/analytics/correlation?a=432&b=13522&lag=6"
 curl http://localhost:3333/etl/status
 ```
 
-Em produção (Supabase), defina `DATABASE_URL` com a connection string e `DATABASE_SSL=true`.
-
 Para alterar o schema, edite `packages/db/src/schema.ts` e rode `npm run db:generate`.
 
-## Estrutura
+## Testes e CI
 
-```
-apps/
-  api/        Fastify + Zod (rotas em src/routes)
-  etl/        Collectors por fonte (src/collectors) e job principal (src/run.ts)
-packages/
-  db/         Schema Drizzle, cliente e migrações (drizzle/)
+```bash
+npm run typecheck
+npm test
+npm run build
 ```
 
-## Fontes de dados
+Os testes (Vitest) cobrem a divisão de janelas de datas e o parse do SGS no ETL, e as funções de estatística da API: Pearson, pareamento com lag, soma de meses entre anos e juro real. O workflow em `.github/workflows/ci.yml` roda typecheck, testes e build do front a cada push e pull request.
 
-- [Banco Central do Brasil, SGS](https://dadosabertos.bcb.gov.br/)
-- [IBGE, API SIDRA](https://servicodados.ibge.gov.br/api/docs)
-- [Brasil API](https://brasilapi.com.br/)
+## Deploy
+
+- **Banco:** projeto no Supabase. Use a connection string em `DATABASE_URL` com `DATABASE_SSL=true` e rode `npm run db:migrate` uma vez.
+- **API e ETL:** o `render.yaml` descreve um web service para a API e um cron job diário para o ETL. Configure `DATABASE_URL` e `CORS_ORIGIN` no painel.
+- **Front:** Vercel com root directory `apps/web` e a variável `NEXT_PUBLIC_API_URL` apontando para a API.
+
+## Limitações conhecidas
+
+- Os gráficos usam médias mensais. Para a Selic meta isso suaviza o dia exato das mudanças.
+- A correlação entre séries de tendência, como Selic e inflação, não implica causalidade e pode ser influenciada por autocorrelação.
+- O ETL e as rotas com banco ainda não têm testes de integração. Hoje os testes cobrem a lógica pura.
+
+## Roadmap
+
+- [ ] Marcações das reuniões do Copom nos gráficos
+- [ ] IBGE (SIDRA): IPCA por grupo e PIB
+- [ ] Brasil API como fonte complementar de câmbio
+- [ ] Testes de integração com PostgreSQL no CI
 
 ## Autor
 
