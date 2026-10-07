@@ -7,7 +7,39 @@ on:
 
 jobs:
   check:
+    name: Typecheck, testes e build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Os testes de integração rodam contra PostgreSQL e Redis de verdade, não contra mocks.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: econ
+          POSTGRES_PASSWORD: econ
+          POSTGRES_DB: econ_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U econ -d econ_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://econ:econ@localhost:5432/econ_test
+      TEST_REDIS_URL: redis://localhost:6379
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,9 +47,72 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      - name: Auditar dependências de produção
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
-      - name: Testes
-        run: npm test
+
+      - name: Testes com cobertura (falha abaixo do piso configurado)
+        run: npm run test:coverage | tee coverage.txt
+
+      - name: Resumo de cobertura no painel da execução
+        if: always()
+        run: |
+          {
+            echo "### Cobertura"
+            echo '```'
+            sed -n '/Coverage summary/,/^=*$/p' coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build do front
         run: npm run build
+
+  docker:
+    name: Docker (sobe a stack e testa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Subir banco, Redis, migrações, API e front
+        run: docker compose --profile app up -d --build --wait --wait-timeout 300 api web
+
+      - name: Teste de fumaça
+        run: |
+          set -e
+          curl -fsS http://localhost:3333/health
+          # /ready só responde 200 com o banco no ar; o cache precisa estar "up"
+          curl -fsS http://localhost:3333/ready | grep -q '"cache":"up"'
+          curl -fsS http://localhost:3333/docs | grep -qi swagger
+          curl -fsS http://localhost:3000/ | grep -q 'Brasil Econ Dashboard'
+
+          # Dados mínimos no banco do compose para exercitar a rota que usa agregação e cache
+          docker compose exec -T db psql -U econ -d econ -v ON_ERROR_STOP=1 -c "
+            INSERT INTO series (source, code, name, unit, periodicity)
+              VALUES ('bcb', '432', 'Meta Selic', '% a.a.', 'daily');
+            INSERT INTO observations
+              SELECT s.id, d::date, 10 + (extract(day FROM d)::int % 3)
+              FROM series s, generate_series('2024-01-01'::date, '2024-03-31', '1 day') d
+              WHERE s.code = '432';"
+
+          url='http://localhost:3333/series/1/observations?agg=month'
+          curl -fsS -D - -o /tmp/mes.json "$url" | grep -qi '^x-cache: MISS'
+          grep -q '"2024-03-01"' /tmp/mes.json
+          curl -fsS -D - -o /dev/null "$url" | grep -qi '^x-cache: HIT'
+
+      - name: "ETL em janela curta (melhor esforço, depende da API pública do BCB)"
+        continue-on-error: true
+        run: docker compose --profile app run --rm -e ETL_START_DATE=2026-01-01 etl
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose --profile app logs --no-color
+
+      - name: Derrubar a stack
+        if: always()
+        run: docker compose --profile app down -v
