@@ -16,14 +16,19 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "web": "npm run dev -w @econ/web",
     "build": "npm run build -w @econ/web",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "docker:up": "docker compose --profile app up --build",
+    "docker:down": "docker compose --profile app down"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.0.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
