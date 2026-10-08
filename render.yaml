@@ -14,6 +14,14 @@ services:
         value: "true"
       - key: CORS_ORIGIN
         sync: false
+      # Atrás do proxy do Render, o IP real do cliente vem em X-Forwarded-For.
+      # Sem isto, o limite de requisições trataria todos os visitantes como um só.
+      - key: TRUST_PROXY
+        value: "true"
+      # Opcional: URL do Redis (ex.: Key Value do Render) para o cache das rotas pesadas.
+      # Sem esta variável a API funciona normalmente, só sem cache.
+      - key: REDIS_URL
+        sync: false
 
   - type: cron
     name: brasil-econ-etl

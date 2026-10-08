@@ -1,3 +1,7 @@
+# Desenvolvimento: `npm run db:up` sobe só PostgreSQL e Redis (serviços sem perfil).
+# Aplicação completa: `npm run docker:up` (= docker compose --profile app up --build)
+#   web  http://localhost:3000     api  http://localhost:3333     docs  http://localhost:3333/docs
+# A primeira subida roda o ETL uma vez (carga do BCB desde 2005); reexecutar faz upsert incremental.
 services:
   db:
     image: postgres:16-alpine
@@ -9,6 +13,80 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U econ -d econ"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    profiles: [app]
+    build: { context: ., target: app }
+    command: ["npm", "run", "migrate", "-w", "@econ/db"]
+    environment:
+      DATABASE_URL: postgres://econ:econ@db:5432/econ
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    profiles: [app]
+    build: { context: ., target: app }
+    environment:
+      DATABASE_URL: postgres://econ:econ@db:5432/econ
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: http://localhost:3000
+      PORT: "3333"
+    ports:
+      - "3333:3333"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3333/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      start_period: 15s
+      retries: 6
+
+  etl:
+    profiles: [app]
+    build: { context: ., target: app }
+    command: ["npm", "run", "start", "-w", "@econ/etl"]
+    environment:
+      DATABASE_URL: postgres://econ:econ@db:5432/econ
+      ETL_START_DATE: ${ETL_START_DATE:-2005-01-01}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
+  web:
+    profiles: [app]
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3333
+    ports:
+      - "3000:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
 
 volumes:
   pgdata:
