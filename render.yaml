@@ -1,17 +1,23 @@
-# Blueprint do Render: API + job diário de ETL.
+# Blueprint do Render: API (plano gratuito) que também mantém o ETL em dia.
 # O banco fica no Supabase; defina DATABASE_URL no painel (sync: false).
+# Sem cron pago: com ETL_AUTO=true a própria API roda o ETL ao subir e a cada hora, se os dados têm mais de 24 horas.
 services:
   - type: web
     name: brasil-econ-api
     runtime: node
     buildCommand: npm ci --include=dev
-    startCommand: npm run start -w @econ/api
+    # As migrações são idempotentes: rodam a cada subida antes de a API abrir a porta.
+    startCommand: npm run db:migrate && npm run start -w @econ/api
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_SSL
         value: "true"
+      - key: ETL_AUTO
+        value: "true"
+      - key: ETL_START_DATE
+        value: "2005-01-01"
       - key: CORS_ORIGIN
         sync: false
       # Atrás do proxy do Render, o IP real do cliente vem em X-Forwarded-For.
@@ -22,15 +28,3 @@ services:
       # Sem esta variável a API funciona normalmente, só sem cache.
       - key: REDIS_URL
         sync: false
-
-  - type: cron
-    name: brasil-econ-etl
-    runtime: node
-    schedule: "0 9 * * *" # diariamente, 09:00 UTC
-    buildCommand: npm ci --include=dev
-    startCommand: npm run etl
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: DATABASE_SSL
-        value: "true"
