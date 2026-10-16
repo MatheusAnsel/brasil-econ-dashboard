@@ -25,4 +25,4 @@ CREATE TABLE "series" (
 	CONSTRAINT "series_source_code_uq" UNIQUE("source","code")
 );
 --> statement-breakpoint
-ALTER TABLE "observations" ADD CONSTRAINT "observations_series_id_series_id_fk" FOREIGN KEY ("series_id") REFERENCES "public"."series"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "observations" ADD CONSTRAINT "observations_series_id_series_id_fk" FOREIGN KEY ("series_id") REFERENCES "series"("id") ON DELETE cascade ON UPDATE no action;
