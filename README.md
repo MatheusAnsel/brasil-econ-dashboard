@@ -15,9 +15,11 @@ O site mostra dados reais do Banco Central, carregados no meu banco (cerca de 19
 
 Aviso sobre a hospedagem gratuita: a API dorme depois de cerca de 15 minutos sem uso. Se a página ficar em "Acordando a API...", aguarde até um minuto; o front tenta de novo sozinho.
 
-![Gráficos de Selic, IPCA 12 meses e juro real](docs/screenshots/dashboard-topo.jpg)
+![Manchete com os números atuais e o gráfico de Selic e IPCA em 12 meses](docs/screenshots/dashboard-selic-ipca.jpg)
 
-![Correlação com defasagem, dólar contra Selic e última execução do ETL](docs/screenshots/dashboard-base.jpg)
+![Juro real e o início do gráfico de dólar e Selic](docs/screenshots/dashboard-juro-dolar.jpg)
+
+![Dólar, correlação com defasagem e última execução do ETL](docs/screenshots/dashboard-correlacao.jpg)
 
 ## Sobre
 
@@ -25,11 +27,12 @@ O projeto cobre o ciclo completo de um produto de dados: coleta periódica de um
 
 ## O que o dashboard mostra
 
-1. Selic meta vs. IPCA acumulado em 12 meses, em eixo duplo
-2. Juro real ao longo do tempo
-3. Correlação de Pearson entre a Selic e o IPCA 12m com defasagem de 0 a 24 meses
-4. Dólar (PTAX venda) vs. Selic
-5. Rodapé com a última execução do ETL, lida da tabela `etl_runs`
+1. Uma manchete com a Selic, o IPCA em 12 meses e o juro real mais recentes
+2. Selic meta e IPCA acumulado em 12 meses, na mesma escala
+3. Juro real ao longo do tempo
+4. Dólar (PTAX venda) e Selic em dois gráficos empilhados, cada um na sua escala
+5. Correlação de Pearson entre a Selic e o IPCA 12m com defasagem de 0 a 24 meses
+6. Rodapé com a última execução do ETL, lida da tabela `etl_runs`
 
 ## Arquitetura
 
