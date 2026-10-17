@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DualAxisChart } from "../components/DualAxisChart";
+import { formatMonth, formatNumber } from "../components/chart-kit";
+import { TrendChart } from "../components/DualAxisChart";
 import { CorrelationChart, RealRateChart } from "../components/SimpleCharts";
 import {
   correlation,
@@ -81,10 +82,20 @@ export default function Page() {
     };
   }, []);
 
+  const ultimo = data?.selicIpca.at(-1);
+  const ultimoDolar = data?.selicDolar.at(-1);
+  const ultimoJuro = data?.realRate.at(-1);
+  const maior = data?.correlations
+    .filter((c): c is { lag: number; correlation: number } => c.correlation !== null)
+    .reduce<{ lag: number; correlation: number } | null>(
+      (m, c) => (m === null || Math.abs(c.correlation) > Math.abs(m.correlation) ? c : m),
+      null,
+    );
+
   return (
     <main>
       <h1>Brasil Econ Dashboard</h1>
-      <p className="sub">Selic, inflação e câmbio com dados do Banco Central do Brasil.</p>
+      <p className="sub">Selic, inflação, juro real e câmbio com dados do Banco Central do Brasil.</p>
 
       {error && <div className="error">Não foi possível carregar os dados: {error}</div>}
       {!data && !error && (
@@ -95,44 +106,77 @@ export default function Page() {
         </p>
       )}
 
-      {data && (
-        <div className="grid">
-          <section className="card">
-            <h2>Selic meta vs. IPCA acumulado em 12 meses</h2>
-            <p>Médias mensais, em % ao ano.</p>
-            <DualAxisChart
-              data={data.selicIpca}
-              left={{ key: "selic", label: "Selic meta", color: "#1d4ed8" }}
-              right={{ key: "ipca12m", label: "IPCA 12m", color: "#dc2626" }}
-              unitLeft="%"
-              unitRight="%"
-            />
+      {data && ultimo && ultimoDolar && ultimoJuro && (
+        <>
+          <section className="kpis" aria-label="Valores mais recentes">
+            <Kpi label="Selic meta" value={`${formatNumber(Number(ultimo.selic), 2)}%`} note="ao ano" />
+            <Kpi label="IPCA em 12 meses" value={`${formatNumber(Number(ultimo.ipca12m), 2)}%`} note={formatMonth(String(ultimo.date))} />
+            <Kpi label="Juro real" value={`${formatNumber(ultimoJuro.realRate, 2)}%`} note="Selic deflacionada pelo IPCA 12m" />
+            <Kpi label="Dólar (PTAX venda)" value={`R$ ${formatNumber(Number(ultimoDolar.dolar), 2)}`} note={`média de ${formatMonth(String(ultimoDolar.date))}`} />
           </section>
 
-          <section className="card">
-            <h2>Juro real</h2>
-            <p>Selic meta deflacionada pelo IPCA 12m (equação de Fisher).</p>
-            <RealRateChart data={data.realRate} />
-          </section>
+          <div className="grid">
+            <section className="card">
+              <h2>Selic meta vs. IPCA em 12 meses</h2>
+              <p>Médias mensais, em % ao ano, na mesma escala.</p>
+              <TrendChart
+                data={data.selicIpca}
+                series={[
+                  { key: "selic", label: "Selic meta", color: "var(--series-1)" },
+                  { key: "ipca12m", label: "IPCA 12 meses", color: "var(--series-2)" },
+                ]}
+                unit="%"
+                fromZero
+              />
+            </section>
 
-          <section className="card">
-            <h2>Correlação Selic x IPCA 12m com defasagem</h2>
-            <p>Selic hoje contra a inflação daqui a N meses (Pearson).</p>
-            <CorrelationChart data={data.correlations} />
-          </section>
+            <section className="card">
+              <h2>Juro real</h2>
+              <p>Selic meta deflacionada pelo IPCA 12m (equação de Fisher).</p>
+              <RealRateChart data={data.realRate} />
+            </section>
 
-          <section className="card">
-            <h2>Dólar vs. Selic</h2>
-            <p>PTAX venda (R$) e Selic meta (% a.a.), médias mensais.</p>
-            <DualAxisChart
-              data={data.selicDolar}
-              left={{ key: "selic", label: "Selic meta", color: "#1d4ed8" }}
-              right={{ key: "dolar", label: "Dólar (R$)", color: "#7c3aed" }}
-              unitLeft="%"
-              unitRight=""
-            />
-          </section>
-        </div>
+            <section className="card">
+              <h2>Correlação entre Selic e IPCA 12m</h2>
+              <p>
+                Selic hoje contra a inflação daqui a N meses (Pearson).
+                {maior && (
+                  <>
+                    {" "}
+                    Maior correlação em módulo: <strong>{formatNumber(maior.correlation, 2)}</strong> com {maior.lag} meses.
+                  </>
+                )}
+              </p>
+              <CorrelationChart data={data.correlations} height={340} />
+            </section>
+
+            <section className="card">
+              <h2>Dólar e Selic</h2>
+              <p>Dois gráficos com o mesmo período, cada um na sua escala: PTAX venda (R$) e Selic meta (% ao ano).</p>
+              <TrendChart
+                data={data.selicDolar}
+                series={[{ key: "selic", label: "Selic meta", color: "var(--series-1)" }]}
+                unit="%"
+                height={150}
+                hideXAxis
+                syncId="dolar-selic"
+                fromZero
+                yWidth={68}
+                caption="Selic meta (% ao ano)"
+              />
+              <TrendChart
+                data={data.selicDolar}
+                series={[{ key: "dolar", label: "Dólar (PTAX venda)", color: "var(--series-4)" }]}
+                prefix="R$ "
+                decimals={2}
+                height={190}
+                syncId="dolar-selic"
+                yWidth={68}
+                caption="Dólar, PTAX venda (R$)"
+              />
+            </section>
+          </div>
+        </>
       )}
 
       <footer>
@@ -141,5 +185,15 @@ export default function Page() {
           : "Sem execuções do ETL registradas."}
       </footer>
     </main>
+  );
+}
+
+function Kpi({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="kpi">
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      <div className="kpi-note">{note}</div>
+    </div>
   );
 }
