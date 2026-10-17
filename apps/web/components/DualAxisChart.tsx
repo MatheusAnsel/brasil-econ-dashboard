@@ -2,36 +2,118 @@
 
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { AXIS_TICK, ChartTooltip, Legend, formatMonth, formatNumber, yearTicks } from "./chart-kit";
+
+export interface SeriesDef {
+  key: string;
+  label: string;
+  /** Cor da série, normalmente uma variável CSS do tema (`var(--series-1)`). */
+  color: string;
+}
 
 interface Props {
   data: Record<string, string | number>[];
-  left: { key: string; label: string; color: string };
-  right: { key: string; label: string; color: string };
-  unitLeft: string;
-  unitRight: string;
+  series: SeriesDef[];
+  /** Sufixo do valor: "%" ou "" (o prefixo vai em `prefix`). */
+  unit?: string;
+  prefix?: string;
+  decimals?: number;
+  height?: number;
+  /** Esconde o eixo do tempo (usado quando outro gráfico logo abaixo compartilha o mesmo eixo). */
+  hideXAxis?: boolean;
+  syncId?: string;
+  zeroLine?: boolean;
+  /** Começa o eixo vertical no zero. */
+  fromZero?: boolean;
+  /** Largura reservada para os números do eixo vertical (use o mesmo valor em gráficos empilhados). */
+  yWidth?: number;
+  /** Texto curto acima do gráfico, para séries únicas (que não têm legenda). */
+  caption?: string;
+  /** Mostra a legenda acima do gráfico quando há mais de uma série (desligue se a legenda estiver em outro lugar). */
+  showLegend?: boolean;
 }
 
-export function DualAxisChart({ data, left, right, unitLeft, unitRight }: Props) {
+/** Linhas de uma ou mais séries na MESMA escala (nunca dois eixos verticais). */
+export function TrendChart({
+  data,
+  series,
+  unit = "",
+  prefix = "",
+  decimals = 1,
+  height = 260,
+  hideXAxis = false,
+  syncId,
+  zeroLine = false,
+  fromZero = false,
+  yWidth = 68,
+  caption,
+  showLegend = true,
+}: Props) {
+  const dates = data.map((d) => String(d.date));
+  const fmt = (v: number) => `${prefix}${formatNumber(v, decimals)}${unit}`;
+  const last = data.length - 1;
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#d9dde3" />
-        <XAxis dataKey="date" minTickGap={48} tick={{ fontSize: 12 }} />
-        <YAxis yAxisId="l" tick={{ fontSize: 12 }} unit={unitLeft} />
-        <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 12 }} unit={unitRight} />
-        <Tooltip />
-        <Legend />
-        <Line yAxisId="l" type="monotone" dataKey={left.key} name={left.label} stroke={left.color} dot={false} strokeWidth={2} />
-        <Line yAxisId="r" type="monotone" dataKey={right.key} name={right.label} stroke={right.color} dot={false} strokeWidth={2} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div>
+      {caption && <div className="caption">{caption}</div>}
+      {showLegend && series.length > 1 && <Legend items={series.map((s) => ({ label: s.label, color: s.color }))} />}
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} syncId={syncId} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid vertical={false} stroke="var(--grid)" />
+          <XAxis
+            dataKey="date"
+            ticks={yearTicks(dates, 4)}
+            tickFormatter={(d: string) => d.slice(0, 4)}
+            tick={AXIS_TICK}
+            axisLine={{ stroke: "var(--grid)" }}
+            tickLine={false}
+            height={hideXAxis ? 4 : 28}
+            hide={hideXAxis}
+          />
+          <YAxis
+            width={yWidth}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            tickCount={5}
+            domain={fromZero ? [0, "auto"] : ["auto", "auto"]}
+            tickFormatter={(v: number) => fmt(v)}
+          />
+          <Tooltip
+            cursor={{ stroke: "var(--muted)", strokeWidth: 1 }}
+            content={<ChartTooltip format={(v) => fmt(v)} title={(l) => formatMonth(String(l))} />}
+          />
+          {zeroLine && <ReferenceLine y={0} stroke="var(--muted)" strokeOpacity={0.6} />}
+          {series.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.label}
+              stroke={s.color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              dot={(p: { cx?: number; cy?: number; index?: number }) =>
+                p.index === last && p.cx !== undefined ? (
+                  <circle key={`fim-${s.key}`} cx={p.cx} cy={p.cy} r={4} fill={s.color} stroke="var(--bg)" strokeWidth={2} />
+                ) : (
+                  <g key={`vazio-${s.key}-${p.index}`} />
+                )
+              }
+              activeDot={{ r: 4, fill: s.color, stroke: "var(--card)", strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

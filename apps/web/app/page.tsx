@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DualAxisChart } from "../components/DualAxisChart";
+import { useEffect, useState, type ReactNode } from "react";
+import { Legend, formatMonth, formatNumber, type LegendItem } from "../components/chart-kit";
+import { TrendChart } from "../components/DualAxisChart";
 import { CorrelationChart, RealRateChart } from "../components/SimpleCharts";
 import {
   correlation,
@@ -81,10 +82,17 @@ export default function Page() {
     };
   }, []);
 
+  const fatos = data ? resumir(data) : null;
+
   return (
     <main>
-      <h1>Brasil Econ Dashboard</h1>
-      <p className="sub">Selic, inflação e câmbio com dados do Banco Central do Brasil.</p>
+      <header className="topo">
+        <span className="marca">Brasil Econ</span>
+        <nav>
+          <a href="https://github.com/MatheusAnsel/brasil-econ-dashboard">Código</a>
+          <a href="https://brasil-econ-api.onrender.com/docs">API</a>
+        </nav>
+      </header>
 
       {error && <div className="error">Não foi possível carregar os dados: {error}</div>}
       {!data && !error && (
@@ -95,44 +103,83 @@ export default function Page() {
         </p>
       )}
 
-      {data && (
-        <div className="grid">
-          <section className="card">
-            <h2>Selic meta vs. IPCA acumulado em 12 meses</h2>
-            <p>Médias mensais, em % ao ano.</p>
-            <DualAxisChart
+      {data && fatos && (
+        <>
+          <h1 className="manchete">
+            Com a Selic em <Num cor="var(--series-1)">{fatos.selic}%</Num> ao ano e a inflação em{" "}
+            <Num cor="var(--series-2)">{fatos.ipca}%</Num>, o juro real é de{" "}
+            <Num cor="var(--series-3)">{fatos.juroReal}%</Num>.
+          </h1>
+          <p className="manchete-nota">
+            Dados do Banco Central do Brasil, {fatos.mesAtual}. O dólar (PTAX venda) está em R$ {fatos.dolar}.
+          </p>
+
+          <Painel
+            titulo="Selic meta e IPCA em 12 meses"
+            texto={`A Selic foi de ${fatos.selicMin.valor}% (${fatos.selicMin.mes}) a ${fatos.selicMax.valor}% (${fatos.selicMax.mes}). Médias mensais, em % ao ano, na mesma escala.`}
+            legenda={[
+              { label: "Selic meta", color: "var(--series-1)" },
+              { label: "IPCA 12 meses", color: "var(--series-2)" },
+            ]}
+          >
+            <TrendChart
               data={data.selicIpca}
-              left={{ key: "selic", label: "Selic meta", color: "#1d4ed8" }}
-              right={{ key: "ipca12m", label: "IPCA 12m", color: "#dc2626" }}
-              unitLeft="%"
-              unitRight="%"
+              series={[
+                { key: "selic", label: "Selic meta", color: "var(--series-1)" },
+                { key: "ipca12m", label: "IPCA 12 meses", color: "var(--series-2)" },
+              ]}
+              unit="%"
+              height={320}
+              fromZero
+              showLegend={false}
             />
-          </section>
+          </Painel>
 
-          <section className="card">
-            <h2>Juro real</h2>
-            <p>Selic meta deflacionada pelo IPCA 12m (equação de Fisher).</p>
+          <Painel
+            titulo="Juro real"
+            texto={`Selic meta deflacionada pelo IPCA 12m (equação de Fisher). Ficou negativo em ${fatos.mesesNegativos} dos ${fatos.mesesTotal} meses da série.`}
+          >
             <RealRateChart data={data.realRate} />
-          </section>
+          </Painel>
 
-          <section className="card">
-            <h2>Correlação Selic x IPCA 12m com defasagem</h2>
-            <p>Selic hoje contra a inflação daqui a N meses (Pearson).</p>
-            <CorrelationChart data={data.correlations} />
-          </section>
-
-          <section className="card">
-            <h2>Dólar vs. Selic</h2>
-            <p>PTAX venda (R$) e Selic meta (% a.a.), médias mensais.</p>
-            <DualAxisChart
+          <Painel
+            titulo="Dólar e Selic"
+            texto={`O dólar foi de R$ ${fatos.dolarMin.valor} (${fatos.dolarMin.mes}) a R$ ${fatos.dolarMax.valor} (${fatos.dolarMax.mes}). Os dois gráficos usam o mesmo período, cada um na sua escala.`}
+          >
+            <TrendChart
               data={data.selicDolar}
-              left={{ key: "selic", label: "Selic meta", color: "#1d4ed8" }}
-              right={{ key: "dolar", label: "Dólar (R$)", color: "#7c3aed" }}
-              unitLeft="%"
-              unitRight=""
+              series={[{ key: "selic", label: "Selic meta", color: "var(--series-1)" }]}
+              unit="%"
+              height={150}
+              hideXAxis
+              syncId="dolar-selic"
+              fromZero
+              yWidth={68}
+              caption="Selic meta (% ao ano)"
             />
-          </section>
-        </div>
+            <TrendChart
+              data={data.selicDolar}
+              series={[{ key: "dolar", label: "Dólar (PTAX venda)", color: "var(--series-4)" }]}
+              prefix="R$ "
+              decimals={2}
+              height={190}
+              syncId="dolar-selic"
+              yWidth={68}
+              caption="Dólar, PTAX venda (R$)"
+            />
+          </Painel>
+
+          <Painel
+            titulo="Correlação entre Selic e IPCA 12m"
+            texto={
+              fatos.maior
+                ? `Selic hoje contra a inflação daqui a N meses (Pearson). A maior correlação em módulo é ${fatos.maior.valor}, com defasagem de ${fatos.maior.lag} meses.`
+                : "Selic hoje contra a inflação daqui a N meses (Pearson)."
+            }
+          >
+            <CorrelationChart data={data.correlations} height={280} />
+          </Painel>
+        </>
       )}
 
       <footer>
@@ -142,4 +189,71 @@ export default function Page() {
       </footer>
     </main>
   );
+}
+
+/** Número em destaque com uma marca na cor da série correspondente (a cor identifica a série; o texto segue a cor do tema). */
+function Num({ cor, children }: { cor: string; children: ReactNode }) {
+  return (
+    <span className="num" style={{ ["--marca" as string]: cor }}>
+      {children}
+    </span>
+  );
+}
+
+function Painel({
+  titulo,
+  texto,
+  legenda,
+  children,
+}: {
+  titulo: string;
+  texto: string;
+  legenda?: LegendItem[];
+  children: ReactNode;
+}) {
+  return (
+    <section className="painel">
+      <div className="painel-texto">
+        <h2>{titulo}</h2>
+        <p>{texto}</p>
+        {legenda && <Legend items={legenda} />}
+      </div>
+      <div className="painel-grafico">{children}</div>
+    </section>
+  );
+}
+
+function extremo(pontos: Record<string, string | number>[], chave: string, tipo: "min" | "max") {
+  const alvo = pontos.reduce((m, p) => (tipo === "max" ? (Number(p[chave]) > Number(m[chave]) ? p : m) : Number(p[chave]) < Number(m[chave]) ? p : m));
+  return { valor: Number(alvo[chave]), mes: formatMonth(String(alvo.date)) };
+}
+
+function resumir(d: DashboardData) {
+  const ultimo = d.selicIpca[d.selicIpca.length - 1];
+  const dolar = d.selicDolar[d.selicDolar.length - 1];
+  const juro = d.realRate[d.realRate.length - 1];
+  const selicMin = extremo(d.selicIpca, "selic", "min");
+  const selicMax = extremo(d.selicIpca, "selic", "max");
+  const dolarMin = extremo(d.selicDolar, "dolar", "min");
+  const dolarMax = extremo(d.selicDolar, "dolar", "max");
+  const maior = d.correlations
+    .filter((c): c is { lag: number; correlation: number } => c.correlation !== null)
+    .reduce<{ lag: number; correlation: number } | null>(
+      (m, c) => (m === null || Math.abs(c.correlation) > Math.abs(m.correlation) ? c : m),
+      null,
+    );
+  return {
+    selic: formatNumber(Number(ultimo.selic), 2),
+    ipca: formatNumber(Number(ultimo.ipca12m), 2),
+    juroReal: formatNumber(juro.realRate, 2),
+    dolar: formatNumber(Number(dolar.dolar), 2),
+    mesAtual: formatMonth(String(ultimo.date)),
+    selicMin: { ...selicMin, valor: formatNumber(selicMin.valor, 2) },
+    selicMax: { ...selicMax, valor: formatNumber(selicMax.valor, 2) },
+    dolarMin: { ...dolarMin, valor: formatNumber(dolarMin.valor, 2) },
+    dolarMax: { ...dolarMax, valor: formatNumber(dolarMax.valor, 2) },
+    mesesNegativos: d.realRate.filter((p) => p.realRate < 0).length,
+    mesesTotal: d.realRate.length,
+    maior: maior ? { lag: maior.lag, valor: formatNumber(maior.correlation, 2) } : null,
+  };
 }
