@@ -7,3 +7,5 @@ dist
 *.log
 .DS_Store
 *.tsbuildinfo
+coverage
+!apps/web/.env.production

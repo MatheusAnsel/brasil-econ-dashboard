@@ -15,6 +15,8 @@ import {
 import { mergeByDate } from "../lib/merge";
 
 const LAGS = [0, 3, 6, 9, 12, 18, 24];
+const MAX_TENTATIVAS = 6;
+const ESPERA_MS = 10_000;
 
 interface DashboardData {
   selicIpca: Record<string, string | number>[];
@@ -53,9 +55,30 @@ async function load(): Promise<DashboardData> {
 export default function Page() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(1);
 
   useEffect(() => {
-    load().then(setData).catch((e: Error) => setError(e.message));
+    let ativo = true;
+    // A API no plano gratuito dorme quando fica sem uso; a primeira chamada pode levar cerca de um minuto.
+    // Por isso tenta algumas vezes antes de mostrar o erro.
+    const carregar = async (n: number) => {
+      try {
+        const d = await load();
+        if (ativo) setData(d);
+      } catch (e) {
+        if (!ativo) return;
+        if (n < MAX_TENTATIVAS) {
+          setTentativa(n + 1);
+          setTimeout(() => void carregar(n + 1), ESPERA_MS);
+        } else {
+          setError((e as Error).message);
+        }
+      }
+    };
+    void carregar(1);
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   return (
@@ -64,7 +87,13 @@ export default function Page() {
       <p className="sub">Selic, inflação e câmbio com dados do Banco Central do Brasil.</p>
 
       {error && <div className="error">Não foi possível carregar os dados: {error}</div>}
-      {!data && !error && <p className="sub">Carregando...</p>}
+      {!data && !error && (
+        <p className="sub">
+          {tentativa === 1
+            ? "Carregando..."
+            : `Acordando a API (hospedagem gratuita), tentativa ${tentativa} de ${MAX_TENTATIVAS}...`}
+        </p>
+      )}
 
       {data && (
         <div className="grid">
