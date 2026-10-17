@@ -9,3 +9,4 @@ dist
 *.tsbuildinfo
 coverage
 !apps/web/.env.production
+apps/web/out
