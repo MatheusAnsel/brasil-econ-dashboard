@@ -59,7 +59,7 @@ export function CorrelationChart({ data, height = 260 }: { data: { lag: number; 
           label={{ value: "Defasagem (meses)", position: "bottom", offset: 2, fill: "var(--muted)", fontSize: 12 }}
         />
         <YAxis
-          width={52}
+          width={68}
           domain={[-1, 1]}
           ticks={[-1, -0.5, 0, 0.5, 1]}
           tick={AXIS_TICK}

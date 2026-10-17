@@ -37,6 +37,8 @@ interface Props {
   yWidth?: number;
   /** Texto curto acima do gráfico, para séries únicas (que não têm legenda). */
   caption?: string;
+  /** Mostra a legenda acima do gráfico quando há mais de uma série (desligue se a legenda estiver em outro lugar). */
+  showLegend?: boolean;
 }
 
 /** Linhas de uma ou mais séries na MESMA escala (nunca dois eixos verticais). */
@@ -51,8 +53,9 @@ export function TrendChart({
   syncId,
   zeroLine = false,
   fromZero = false,
-  yWidth = 52,
+  yWidth = 68,
   caption,
+  showLegend = true,
 }: Props) {
   const dates = data.map((d) => String(d.date));
   const fmt = (v: number) => `${prefix}${formatNumber(v, decimals)}${unit}`;
@@ -60,7 +63,7 @@ export function TrendChart({
   return (
     <div>
       {caption && <div className="caption">{caption}</div>}
-      {series.length > 1 && <Legend items={series.map((s) => ({ label: s.label, color: s.color }))} />}
+      {showLegend && series.length > 1 && <Legend items={series.map((s) => ({ label: s.label, color: s.color }))} />}
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} syncId={syncId} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--grid)" />
@@ -100,7 +103,7 @@ export function TrendChart({
               strokeLinejoin="round"
               dot={(p: { cx?: number; cy?: number; index?: number }) =>
                 p.index === last && p.cx !== undefined ? (
-                  <circle key={`fim-${s.key}`} cx={p.cx} cy={p.cy} r={4} fill={s.color} stroke="var(--card)" strokeWidth={2} />
+                  <circle key={`fim-${s.key}`} cx={p.cx} cy={p.cy} r={4} fill={s.color} stroke="var(--bg)" strokeWidth={2} />
                 ) : (
                   <g key={`vazio-${s.key}-${p.index}`} />
                 )
