@@ -7,6 +7,18 @@
 
 Dashboard de indicadores econômicos do Brasil. Um job de ETL coleta séries históricas do Banco Central, grava no PostgreSQL e uma API REST em Node/TypeScript as serve para um front em Next.js, que mostra a relação entre Selic, inflação, juro real e câmbio.
 
+## Demonstração online
+
+**Acesse: https://brasil-econ-dashboard-apps.vercel.app**
+
+O site mostra dados reais do Banco Central, carregados no meu banco (cerca de 19 mil observações de 5 séries, de 2005 até hoje). A API pública, com documentação Swagger, fica em https://brasil-econ-api.onrender.com/docs.
+
+Aviso sobre a hospedagem gratuita: a API dorme depois de cerca de 15 minutos sem uso. Se a página ficar em "Acordando a API...", aguarde até um minuto; o front tenta de novo sozinho.
+
+![Gráficos de Selic, IPCA 12 meses e juro real](docs/screenshots/dashboard-topo.jpg)
+
+![Correlação com defasagem, dólar contra Selic e última execução do ETL](docs/screenshots/dashboard-base.jpg)
+
 ## Sobre
 
 O projeto cobre o ciclo completo de um produto de dados: coleta periódica de uma fonte pública, modelagem e persistência, API tipada com validação, análise estatística e visualização. A análise central é a correlação com defasagem (lag) entre a Selic e a inflação, além do cálculo do juro real.
@@ -203,7 +215,7 @@ npm run test:coverage
 npm run build
 ```
 
-79 testes (Vitest). Os de integração rodam contra um **PostgreSQL real** e, quando há `TEST_REDIS_URL`, contra um **Redis real**, em vez de mocks. Isso valida o SQL de verdade, e foi assim que apareceu um bug que a lógica pura não mostrava: `agg=month` e `agg=year` respondiam 500 porque o PostgreSQL rejeitava a unidade de tempo enviada como parâmetro.
+87 testes (Vitest). Os de integração rodam contra um **PostgreSQL real** e, quando há `TEST_REDIS_URL`, contra um **Redis real**, em vez de mocks. Isso valida o SQL de verdade, e foi assim que apareceu um bug que a lógica pura não mostrava: `agg=month` e `agg=year` respondiam 500 porque o PostgreSQL rejeitava a unidade de tempo enviada como parâmetro.
 
 O que está coberto:
 
@@ -217,11 +229,12 @@ O que está coberto:
 
 | Cobertura (out/2026) | Medido | Mínimo exigido no CI |
 | --- | --- | --- |
-| Linhas e instruções | 100% | 95% |
-| Branches | 99% | 90% |
-| Funções | 100% | 95% |
+| Linhas | 100% | 95% |
+| Instruções | 99% | 95% |
+| Branches | 98% | 90% |
+| Funções | 97% | 95% |
 
-Se a cobertura cair abaixo do mínimo, o CI falha. Para rodar os testes localmente, crie um banco que termine em `_test` (a suíte apaga os dados dele e se recusa a rodar em outro) e aponte `TEST_DATABASE_URL`; opcionalmente defina `TEST_REDIS_URL`.
+Esses números são com o Redis de testes ativo; sem `TEST_REDIS_URL` os testes de cache são pulados e a cobertura de funções fica abaixo do mínimo. Se a cobertura cair abaixo do mínimo, o CI falha. Para rodar os testes localmente, crie um banco que termine em `_test` (a suíte apaga os dados dele e se recusa a rodar em outro) e aponte `TEST_DATABASE_URL`; opcionalmente defina `TEST_REDIS_URL`.
 
 O workflow em `.github/workflows/ci.yml` roda a cada push e pull request, em dois jobs:
 
@@ -230,9 +243,22 @@ O workflow em `.github/workflows/ci.yml` roda a cada push e pull request, em doi
 
 ## Deploy
 
-- **Banco:** projeto no Supabase. Use a connection string em `DATABASE_URL` com `DATABASE_SSL=true` e rode `npm run db:migrate` uma vez.
-- **API e ETL:** o `render.yaml` descreve um web service para a API e um cron job diário para o ETL. Configure `DATABASE_URL` e `CORS_ORIGIN` no painel. O blueprint já define `TRUST_PROXY=true` (necessário atrás do proxy do Render para o limite de requisições enxergar o IP real de cada visitante). `REDIS_URL` é opcional: aponte para um Redis (por exemplo, o Key Value do Render) para ativar o cache.
-- **Front:** Vercel com root directory `apps/web` e a variável `NEXT_PUBLIC_API_URL` apontando para a API.
+A demonstração roda inteira em planos gratuitos:
+
+| Peça | Onde | Observações |
+| --- | --- | --- |
+| Banco | Supabase (PostgreSQL) | Schema próprio `econ`, em um usuário com `search_path` fixo; conexão pelo pooler em modo sessão |
+| API e ETL | Render (web service) | Definido em `render.yaml`; aplica as migrações ao subir e agenda o ETL dentro do próprio processo |
+| Front | Vercel | Root directory `apps/web`, framework Next.js |
+
+Passos:
+
+1. **Banco.** Crie o usuário e o schema (`create schema econ`, `alter role ... set search_path = econ`) e use a connection string em `DATABASE_URL`, com `DATABASE_SSL=true`. As migrações não qualificam o schema, então rodam em qualquer um.
+2. **API.** No Render, crie o serviço a partir do `render.yaml` e configure `DATABASE_URL` e `CORS_ORIGIN` (o endereço do front, sem barra no final). O comando de início roda `npm run db:migrate` antes de subir a API. `TRUST_PROXY=true` já vem no blueprint, necessário atrás do proxy do Render para o limite de requisições enxergar o IP real de cada visitante. `REDIS_URL` é opcional: aponte para um Redis para ativar o cache.
+3. **ETL.** Com `ETL_AUTO=true`, a API verifica a cada hora a data da última execução com sucesso e, se não houver ou passar de 24 horas, roda o ETL (a primeira carga busca o histórico desde `ETL_START_DATE`, por padrão 2005-01-01). Assim não é preciso um cron pago. O ETL também continua disponível como comando (`npm run etl`).
+4. **Front.** Na Vercel, importe o repositório com root directory `apps/web`. O build já aponta para a API de produção; para outro endereço, defina `NEXT_PUBLIC_API_URL` (a variável é lida no build).
+
+Limites do plano gratuito: o serviço do Render dorme por inatividade (a primeira chamada demora), e se ele dormir no meio de uma carga o registro fica como `running` até a próxima verificação iniciar outra execução.
 
 ## Limitações conhecidas
 
