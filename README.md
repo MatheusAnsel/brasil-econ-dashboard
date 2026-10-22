@@ -82,6 +82,8 @@ sequenceDiagram
 
 ## Decisões técnicas
 
+As três decisões que mais moldam o projeto estão registradas com contexto e consequências em [docs/adr](docs/adr/README.md).
+
 - **ETL idempotente.** `observations` tem chave primária em `(series_id, date)` e toda escrita é upsert. O job pode rodar quantas vezes for preciso sem duplicar dados.
 - **Carga incremental.** Depois da primeira carga, cada execução reprocessa só os últimos 60 dias de cada série, o que cobre revisões (como as do IPCA).
 - **Limite do SGS.** Séries diárias aceitam janelas de cerca de 10 anos por consulta. O collector divide o período em janelas de 9 anos e tenta de novo com backoff exponencial em caso de falha.

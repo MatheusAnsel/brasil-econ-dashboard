@@ -10,6 +10,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Licença MIT
 - CHANGELOG com o histórico de versões
+- Registros de decisão de arquitetura (ADRs) em `docs/adr`
 
 ## [1.1.0] - 2026-10-16
 
