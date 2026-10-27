@@ -96,11 +96,16 @@ export default function Page() {
 
       {error && <div className="error">Não foi possível carregar os dados: {error}</div>}
       {!data && !error && (
-        <p className="sub">
-          {tentativa === 1
-            ? "Carregando..."
-            : `Acordando a API (hospedagem gratuita), tentativa ${tentativa} de ${MAX_TENTATIVAS}...`}
-        </p>
+        <div className="sub" role="status" aria-live="polite">
+          <p>
+            <strong>Servidor iniciando, pode levar até 1 minuto.</strong>
+          </p>
+          <p>
+            A API fica em hospedagem gratuita e dorme quando não é usada. Os dados aparecem sozinhos assim que ela
+            responder; não é preciso recarregar a página.
+            {tentativa > 1 && ` (tentativa ${tentativa} de ${MAX_TENTATIVAS})`}
+          </p>
+        </div>
       )}
 
       {data && fatos && (
@@ -182,11 +187,13 @@ export default function Page() {
         </>
       )}
 
-      <footer>
-        {data?.etl
-          ? `Última atualização: ${new Date(data.etl.finishedAt ?? data.etl.startedAt).toLocaleString("pt-BR")} (${data.etl.status}, ${data.etl.rowsUpserted} linhas)`
-          : "Sem execuções do ETL registradas."}
-      </footer>
+      {data && (
+        <footer>
+          {data.etl
+            ? `Última atualização: ${new Date(data.etl.finishedAt ?? data.etl.startedAt).toLocaleString("pt-BR")} (${data.etl.status}, ${data.etl.rowsUpserted} linhas)`
+            : "Sem execuções do ETL registradas."}
+        </footer>
+      )}
     </main>
   );
 }
