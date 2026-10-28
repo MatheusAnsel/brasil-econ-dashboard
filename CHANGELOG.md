@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] - 2026-10-27
+
+### Adicionado
+
+- Pasta `analysis/` com sete consultas SQL comentadas: cobertura das séries, IPCA acumulado por ano, decisões do Copom, juro real, defasagem entre Selic e IPCA, variação e volatilidade do dólar e saúde do ETL
+- Testes das consultas contra o PostgreSQL, comparando juro real e correlação com os cálculos da API
+- Pasta `powerbi/` com consultas do Power Query, tabela de datas, medidas DAX e passo a passo do relatório
+
 ## [1.1.1] - 2026-10-21
 
 ### Documentação

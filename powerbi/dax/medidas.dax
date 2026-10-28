@@ -1,0 +1,113 @@
+-- Medidas do relatório. Crie uma tabela vazia "_Medidas" (Inserir dados > Carregar) e
+-- adicione cada medida nela, para não espalhar medidas pelas tabelas.
+-- A fato fObservacoes já vem da API em média mensal; por isso [Valor Médio] num mês é o valor do mês.
+
+-- Base -----------------------------------------------------------------------
+
+Valor Médio =
+AVERAGE ( fObservacoes[Valor] )
+
+Selic Meta =
+CALCULATE ( [Valor Médio], dSerie[Codigo] = "432" )
+
+IPCA 12m =
+CALCULATE ( [Valor Médio], dSerie[Codigo] = "13522" )
+
+IPCA Mensal =
+CALCULATE ( [Valor Médio], dSerie[Codigo] = "433" )
+
+Dólar Médio =
+CALCULATE ( [Valor Médio], dSerie[Codigo] = "1" )
+
+-- Juro real ------------------------------------------------------------------
+
+-- Equação de Fisher. Selic - IPCA é só uma aproximação.
+Juro Real (Fisher) =
+VAR Selic = [Selic Meta]
+VAR Ipca = [IPCA 12m]
+RETURN
+    IF (
+        NOT ISBLANK ( Selic ) && NOT ISBLANK ( Ipca ),
+        ( DIVIDE ( 1 + Selic / 100, 1 + Ipca / 100 ) - 1 ) * 100
+    )
+
+-- Conferência com a API: deve ficar perto de zero em todos os meses.
+Diferença Juro Real vs API =
+VAR Api = AVERAGE ( fJuroReal[Juro Real API] )
+RETURN
+    IF ( NOT ISBLANK ( Api ) && NOT ISBLANK ( [Juro Real (Fisher)] ), [Juro Real (Fisher)] - Api )
+
+-- Inflação acumulada ---------------------------------------------------------
+
+-- Inflação composta do ano até o mês do contexto (num visual por ano, o ano inteiro).
+-- Cada mês é calculado só com o filtro do próprio mês (REMOVEFILTERS tira o filtro do visual).
+IPCA Acumulado no Ano =
+VAR UltimaData = MAX ( dCalendario[Date] )
+VAR Meses =
+    FILTER (
+        ALL ( dCalendario[InicioMes], dCalendario[Ano] ),
+        dCalendario[Ano] = YEAR ( UltimaData )
+            && dCalendario[InicioMes] <= UltimaData
+    )
+VAR Fator =
+    PRODUCTX (
+        Meses,
+        VAR InicioMes = dCalendario[InicioMes]
+        RETURN
+            1
+                + CALCULATE (
+                    [IPCA Mensal],
+                    REMOVEFILTERS ( dCalendario ),
+                    dCalendario[InicioMes] = InicioMes
+                ) / 100
+    )
+RETURN
+    IF ( NOT ISBLANK ( [IPCA Mensal] ), ( Fator - 1 ) * 100 )
+
+-- Variações ------------------------------------------------------------------
+
+Dólar Variação Mensal % =
+VAR Atual = [Dólar Médio]
+VAR Anterior = CALCULATE ( [Dólar Médio], DATEADD ( dCalendario[Date], -1, MONTH ) )
+RETURN
+    IF (
+        NOT ISBLANK ( Atual ) && NOT ISBLANK ( Anterior ),
+        ( DIVIDE ( Atual, Anterior ) - 1 ) * 100
+    )
+
+Selic Variação 12m (p.p.) =
+VAR Atual = [Selic Meta]
+VAR UmAnoAntes = CALCULATE ( [Selic Meta], DATEADD ( dCalendario[Date], -12, MONTH ) )
+RETURN
+    IF ( NOT ISBLANK ( Atual ) && NOT ISBLANK ( UmAnoAntes ), Atual - UmAnoAntes )
+
+-- Cartões com o último valor disponível -------------------------------------
+
+Último Mês com Selic =
+CALCULATE (
+    MAX ( fObservacoes[Data] ),
+    dSerie[Codigo] = "432",
+    REMOVEFILTERS ( dCalendario )
+)
+
+Selic Atual =
+VAR Ultimo = [Último Mês com Selic]
+RETURN
+    CALCULATE ( [Selic Meta], REMOVEFILTERS ( dCalendario ), dCalendario[Date] = Ultimo )
+
+IPCA 12m Atual =
+VAR Ultimo =
+    CALCULATE ( MAX ( fObservacoes[Data] ), dSerie[Codigo] = "13522", REMOVEFILTERS ( dCalendario ) )
+RETURN
+    CALCULATE ( [IPCA 12m], REMOVEFILTERS ( dCalendario ), dCalendario[Date] = Ultimo )
+
+-- Usa o último mês que tem as duas séries, para não misturar meses diferentes.
+Juro Real Atual =
+VAR Ultimo =
+    MINX (
+        { [Último Mês com Selic],
+          CALCULATE ( MAX ( fObservacoes[Data] ), dSerie[Codigo] = "13522", REMOVEFILTERS ( dCalendario ) ) },
+        [Value]
+    )
+RETURN
+    CALCULATE ( [Juro Real (Fisher)], REMOVEFILTERS ( dCalendario ), dCalendario[Date] = Ultimo )

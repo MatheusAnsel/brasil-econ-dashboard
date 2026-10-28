@@ -34,6 +34,13 @@ O projeto cobre o ciclo completo de um produto de dados: coleta periódica de um
 5. Correlação de Pearson entre a Selic e o IPCA 12m com defasagem de 0 a 24 meses
 6. Rodapé com a última execução do ETL, lida da tabela `etl_runs`
 
+## Análise de dados
+
+Além do dashboard, o repositório traz a análise feita direto sobre o banco e um roteiro para levar os dados ao Power BI.
+
+- **[analysis/](analysis/)**: sete consultas SQL comentadas, cada uma respondendo uma pergunta (inflação composta por ano, decisões do Copom em pontos-base, juro real, defasagem entre Selic e IPCA, variação e volatilidade do dólar, cobertura das séries e saúde do ETL). Todas têm teste automatizado contra o PostgreSQL, e as de juro real e correlação são comparadas com os cálculos da API.
+- **[powerbi/](powerbi/)**: consultas do Power Query que consomem a API, modelo estrela (séries, calendário e fato mensal) e medidas DAX para Selic, IPCA acumulado no ano, juro real pela equação de Fisher e variações, com o passo a passo para montar o relatório.
+
 ## Arquitetura
 
 ```mermaid
@@ -220,7 +227,7 @@ npm run test:coverage
 npm run build
 ```
 
-87 testes (Vitest). Os de integração rodam contra um **PostgreSQL real** e, quando há `TEST_REDIS_URL`, contra um **Redis real**, em vez de mocks. Isso valida o SQL de verdade, e foi assim que apareceu um bug que a lógica pura não mostrava: `agg=month` e `agg=year` respondiam 500 porque o PostgreSQL rejeitava a unidade de tempo enviada como parâmetro.
+96 testes (Vitest). Os de integração rodam contra um **PostgreSQL real** e, quando há `TEST_REDIS_URL`, contra um **Redis real**, em vez de mocks. Isso valida o SQL de verdade, e foi assim que apareceu um bug que a lógica pura não mostrava: `agg=month` e `agg=year` respondiam 500 porque o PostgreSQL rejeitava a unidade de tempo enviada como parâmetro.
 
 O que está coberto:
 
@@ -231,6 +238,7 @@ O que está coberto:
 - **Proteções**: cabeçalhos do helmet, limite de requisições e CORS.
 - **Documentação**: o spec OpenAPI é válido e os parâmetros documentados saem dos mesmos schemas que validam.
 - **Estatística pura**: Pearson, pareamento com lag, soma de meses entre anos e juro real.
+- **Consultas de análise** (`analysis/`): cada arquivo `.sql` roda contra o banco com dados conhecidos; juro real e correlação precisam bater com as funções da API.
 
 | Cobertura (out/2026) | Medido | Mínimo exigido no CI |
 | --- | --- | --- |

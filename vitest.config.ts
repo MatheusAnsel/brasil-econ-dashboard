@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    include: ["apps/**/*.test.ts", "packages/**/*.test.ts", "analysis/**/*.test.ts"],
     globalSetup: ["./test/global-setup.ts"],
     // Os testes de integração compartilham um único banco: rodam um arquivo por vez.
     fileParallelism: false,
