@@ -13,6 +13,22 @@ Roteiro e código para montar no Power BI Desktop um relatório sobre os dados d
 | [dax/dCalendario.dax](dax/dCalendario.dax) | Tabela de datas |
 | [dax/medidas.dax](dax/medidas.dax) | Medidas: Selic, IPCA, juro real, IPCA acumulado no ano, variações e cartões |
 
+## O relatório
+
+Montado no Power BI Desktop com o código desta pasta, em três páginas, consumindo a API publicada.
+
+**Visão geral:** Selic, IPCA 12 meses e juro real atuais, e a Selic contra o IPCA desde 2005.
+
+![Visão geral do relatório no Power BI](../docs/screenshots/powerbi-visao-geral.jpg)
+
+**Inflação:** IPCA acumulado em cada ano, do maior para o menor. 2015 (10,7%) e 2021 (10,1%) lideram, iguais aos números oficiais do IBGE. O ano corrente aparece com a inflação acumulada até o último mês disponível.
+
+![IPCA acumulado por ano no Power BI](../docs/screenshots/powerbi-inflacao.jpg)
+
+**Defasagem:** correlação entre a Selic de um mês e o IPCA 12 meses de N meses depois. Fica negativa a partir de uns 5 meses e chega perto de -0,48 entre 17 e 20 meses: juro alto costuma vir acompanhado de inflação menor mais de um ano depois. É correlação, não prova de causa.
+
+![Correlação Selic x IPCA por defasagem no Power BI](../docs/screenshots/powerbi-defasagem.jpg)
+
 ## Modelo
 
 ```
@@ -28,7 +44,7 @@ fCorrelacao (sem relacionamento)
 
 **2. Consultas.** No Power Query, crie uma Consulta Nula para cada arquivo de `power-query/` (Nova fonte > Consulta Nula > Editor Avançado), cole o código e dê à consulta o nome do arquivo, sem a extensão. Crie nesta ordem: `dSerie`, `fObservacoes`, `fJuroReal`, `fCorrelacao`. Na primeira conexão, escolha acesso **Anônimo** (a API é pública).
 
-**3. Tabela de datas.** Em Modelagem > Nova tabela, cole `dax/dCalendario.dax`. Marque como tabela de datas (coluna `Date`) e ordene `Mes` por `MesNumero`.
+**3. Tabela de datas.** Em Modelagem > Nova tabela, cole `dax/dCalendario.dax`. Marque como tabela de datas (coluna `Date`) e ordene `Mes` por `MesNumero`. Crie também a coluna `AnoTexto = FORMAT ( dCalendario[Date], "yyyy" )`: como texto, o ano vai direto para o eixo dos gráficos em vez de ser somado.
 
 **4. Relacionamentos.** No modo de exibição de modelo:
 - `dSerie[SerieId]` 1:* `fObservacoes[SerieId]`
@@ -37,11 +53,11 @@ fCorrelacao (sem relacionamento)
 
 **5. Medidas.** Crie uma tabela vazia `_Medidas` (Inserir dados > Carregar) e adicione as medidas de `dax/medidas.dax`, uma por vez.
 
-**6. Páginas sugeridas.**
+**6. Páginas.** As três primeiras estão no relatório publicado; as outras são sugestões.
 - **Visão geral:** cartões `Selic Atual`, `IPCA 12m Atual` e `Juro Real Atual`; gráfico de linhas com `Selic Meta` e `IPCA 12m` por `dCalendario[InicioMes]`; segmentação por `Ano`.
-- **Inflação:** colunas com `IPCA Acumulado no Ano` por `Ano`; matriz `Ano` x `Mes` com `IPCA Mensal` e formatação condicional em escala de cor.
+- **Inflação:** barras com `IPCA Acumulado no Ano` por `AnoTexto`; matriz `Ano` x `Mes` com `IPCA Mensal` e formatação condicional em escala de cor.
 - **Juro real e dólar:** linha com `Juro Real (Fisher)`; colunas com `Dólar Variação Mensal %` (cor diferente para valores negativos).
-- **Defasagem:** colunas com `fCorrelacao[Correlação]` por `Defasagem (meses)`, destacando a mais negativa.
+- **Defasagem:** barras com `fCorrelacao[Correlação]` por `Defasagem (meses)` (configure a coluna como "Não resumir" para ela ir ao eixo).
 
 **7. Conferência.** Numa tabela com `dCalendario[InicioMes]`, `Juro Real (Fisher)` e `Diferença Juro Real vs API`, a diferença precisa ficar em zero (ou na casa dos centésimos por arredondamento). O mesmo número sai da consulta [analysis/04_juro_real_mensal.sql](../analysis/04_juro_real_mensal.sql).
 

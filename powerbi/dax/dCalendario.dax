@@ -15,4 +15,7 @@ RETURN
         "InicioMes", DATE ( YEAR ( [Date] ), MONTH ( [Date] ), 1 )
     )
 
+-- Coluna calculada (Ferramentas da tabela > Nova coluna): ano como texto, para eixos de gráfico.
+-- AnoTexto = FORMAT ( dCalendario[Date], "yyyy" )
+
 -- Dica: ordene a coluna Mes por MesNumero (Ferramentas de coluna > Classificar por coluna).

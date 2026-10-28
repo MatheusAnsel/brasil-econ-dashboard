@@ -39,7 +39,7 @@ O projeto cobre o ciclo completo de um produto de dados: coleta periódica de um
 Além do dashboard, o repositório traz a análise feita direto sobre o banco e um roteiro para levar os dados ao Power BI.
 
 - **[analysis/](analysis/)**: sete consultas SQL comentadas, cada uma respondendo uma pergunta (inflação composta por ano, decisões do Copom em pontos-base, juro real, defasagem entre Selic e IPCA, variação e volatilidade do dólar, cobertura das séries e saúde do ETL). Todas têm teste automatizado contra o PostgreSQL, e as de juro real e correlação são comparadas com os cálculos da API.
-- **[powerbi/](powerbi/)**: consultas do Power Query que consomem a API, modelo estrela (séries, calendário e fato mensal) e medidas DAX para Selic, IPCA acumulado no ano, juro real pela equação de Fisher e variações, com o passo a passo para montar o relatório.
+- **[powerbi/](powerbi/)**: consultas do Power Query que consomem a API, modelo estrela (séries, calendário e fato mensal) e medidas DAX para Selic, IPCA acumulado no ano, juro real pela equação de Fisher e variações, com o passo a passo para montar o relatório. O relatório já montado, com três páginas (visão geral, inflação por ano e defasagem), aparece em [powerbi/README.md](powerbi/README.md).
 
 ## Arquitetura
 
