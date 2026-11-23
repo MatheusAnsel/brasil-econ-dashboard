@@ -84,4 +84,6 @@ main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 72px; }
 .tooltip-value { margin-left: auto; padding-left: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .error { border: 1px solid #b91c1c; color: #b91c1c; padding: 12px; border-radius: 8px; margin: 40px 0 20px; }
+.error p + p { margin-top: 6px; }
+.error .tentar { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 footer { border-top: 1px solid var(--border); padding-top: 20px; color: var(--muted); font-size: 0.85rem; }

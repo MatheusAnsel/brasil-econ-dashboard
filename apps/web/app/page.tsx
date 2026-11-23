@@ -57,9 +57,11 @@ export default function Page() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(1);
+  const [rodada, setRodada] = useState(0);
 
   useEffect(() => {
     let ativo = true;
+    let espera: ReturnType<typeof setTimeout> | undefined;
     // A API no plano gratuito dorme quando fica sem uso; a primeira chamada pode levar cerca de um minuto.
     // Por isso tenta algumas vezes antes de mostrar o erro.
     const carregar = async (n: number) => {
@@ -70,7 +72,7 @@ export default function Page() {
         if (!ativo) return;
         if (n < MAX_TENTATIVAS) {
           setTentativa(n + 1);
-          setTimeout(() => void carregar(n + 1), ESPERA_MS);
+          espera = setTimeout(() => void carregar(n + 1), ESPERA_MS);
         } else {
           setError((e as Error).message);
         }
@@ -79,8 +81,15 @@ export default function Page() {
     void carregar(1);
     return () => {
       ativo = false;
+      clearTimeout(espera);
     };
-  }, []);
+  }, [rodada]);
+
+  const tentarDeNovo = () => {
+    setError(null);
+    setTentativa(1);
+    setRodada((n) => n + 1);
+  };
 
   const fatos = data ? resumir(data) : null;
 
@@ -94,7 +103,19 @@ export default function Page() {
         </nav>
       </header>
 
-      {error && <div className="error">Não foi possível carregar os dados: {error}</div>}
+      {error && (
+        <div className="error" role="alert">
+          <p>
+            <strong>Não foi possível carregar os dados</strong> ({error}).
+          </p>
+          <p>
+            A API pode estar fora do ar ou ainda subindo. O código e a documentação continuam nos links acima.{" "}
+            <button type="button" className="tentar" onClick={tentarDeNovo}>
+              Tentar de novo
+            </button>
+          </p>
+        </div>
+      )}
       {!data && !error && (
         <div className="sub" role="status" aria-live="polite">
           <p>

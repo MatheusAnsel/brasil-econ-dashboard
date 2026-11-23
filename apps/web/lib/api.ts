@@ -29,9 +29,31 @@ export interface EtlRun {
   rowsUpserted: number;
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`);
-  if (!res.ok) throw new Error(`Falha em ${path}: HTTP ${res.status}`);
+// A API no plano gratuito leva perto de 1 minuto para acordar. Passado este limite, a requisição é
+// cancelada e conta como falha (a página tenta de novo e, no fim, mostra o erro): ninguém fica preso.
+export const REQUEST_TIMEOUT_MS = 70_000;
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "timeout" | "network" | "http",
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export async function get<T>(path: string, fetchImpl: typeof fetch = fetch, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`${API_URL}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      throw new ApiError(`a API não respondeu em ${Math.round(timeoutMs / 1000)} s`, "timeout");
+    }
+    throw new ApiError("sem conexão com a API", "network");
+  }
+  if (!res.ok) throw new ApiError(`a API respondeu com erro (HTTP ${res.status}) em ${path}`, "http");
   return (await res.json()) as T;
 }
 
